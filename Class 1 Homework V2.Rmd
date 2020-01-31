@@ -1,0 +1,87 @@
+---
+title: "Class 1 Homework"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load the following libraries:
+
+```{r, echo = T, message=F, warning=F, fig.width=5, fig.height=4, fig.align="center"}
+library(tidyverse)  
+library(kableExtra)
+library(gcookbook)
+
+```
+
+Get heightweight data *(built in with the gcookbook package)*, and put it in a dataframe *(the gcookbook:: syntax tell r which package the function or data you want is coming from. This normally is not necessary, unless packages have functions or data with the same name)*:
+
+```{r, echo = T, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+dfHW <- heightweight
+
+head(dfHW)
+
+```
+Let's take a quick look at the distribution of female and male observations. Use count to find the totals:
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+count(dfHW, sex)
+
+```
+Now, Create a scatter plot of Weight vs Age in Years:
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p = ggplot(dfHW, aes(ageYear, weightLb)) + geom_point()
+p
+
+
+```
+
+Change the scatter plot to show sex in different colors:
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p = ggplot(dfHW, aes(ageYear, weightLb, color = sex)) + geom_point()
+p
+
+```
+
+What does that tell us? Is that a little hard to see?
+
+Let's make it easier to see. Create a new dataframe, and group the data by sex and ageYear, Then summarise the means of heightIn. It should look like the following: 
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+SummaryHW = dfHW %>% group_by(sex, ageYear) %>% summarise(AvgWeight = mean(weightLb))
+
+SummaryHW
+
+```
+
+Now plot that and see what it looks like. And add a geom_smooth regression line to see if we can pick up a trend.
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p = ggplot(SummaryHW, aes(ageYear, AvgWeight, color = sex)) + geom_point()
+
+p
+
+
+```
+
+A little easier to see tendency. Do you think there's a tedency? Add a geom_smooth() *(use se = F)*
+
+
+```{r, echo = F, comment = NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p = p + geom_smooth(se = F)
+
+p
+
+
+```

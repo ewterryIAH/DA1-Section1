@@ -1,0 +1,98 @@
+---
+title: "Class_2_Homework"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Data Prep and Visualization
+
+Load the following Libraries and read in ProductInvoices.csv
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+# setwd("/home/ellen/Documents/Spring2020/DA1/Section I/class 2/Class 2 Data Files/")
+
+setwd("C:/Users/ellen/OneDrive/Documents/Spring 2020/DA1/Section 1/Class 2/Class 2 Data Files")
+
+dfProductInvoices = read_csv("ProductInvoices.csv")
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+dfProductInvoices = dfProductInvoices %>% mutate(Date2 = mdy(Date))
+
+dfProductInvoices = dfProductInvoices %>% mutate(Date = Date2) %>% select(-Date2) 
+
+
+dfProductInvoicesLong = dfProductInvoices %>% 
+  pivot_longer(
+  cols = 2:ncol(dfProductInvoices),
+  names_to = "Product",
+  values_to = "Sales",
+  values_drop_na = TRUE
+)
+
+```
+
+Create a bar plot to visualize sales by date, similar to the following:
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p1 = ggplot(dfProductInvoicesLong, aes(Date, Sales)) + geom_bar(stat = "identity")
+p1
+
+```
+
+Group by week and summarize sales. Then plot showing products in colors *(you can use show.legend = FALSE in the geom_bar function to save a huge display of products)*:
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+dfProductInvoicesSummary = dfProductInvoicesLong %>% group_by(Week = week(Date), Product) %>% summarise(WkSales = sum(Sales))
+
+p1 = ggplot(dfProductInvoicesSummary, aes(Week, WkSales, fill = Product)) + geom_bar(stat = "identity", show.legend = FALSE) 
+p1
+
+```
+
+Rather than stacking products, show product sales separately *(position = "dodge")*
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p1 = ggplot(dfProductInvoicesSummary, aes(Week, WkSales, fill = Product)) + geom_bar(stat = "identity", position = "dodge", show.legend = FALSE)
+p1
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+dfProductInvoicesSummaryWide <- dfProductInvoicesSummary %>% 
+  pivot_wider(names_from = "Product", values_from = "WkSales") 
+
+Forecast = dfProductInvoicesSummaryWide %>% ungroup() %>% filter(Week == 1)  %>% mutate(Week = 4) %>%
+  bind_rows(dfProductInvoicesSummaryWide) %>% pivot_longer(
+   cols = 2:ncol(dfProductInvoicesSummaryWide),
+   names_to = "Product",
+   values_to = "Sales",
+   values_drop_na = TRUE
+ )
+
+
+```
+
+### Forecast
+
+Now, add a week 4 to the data, with the same sales as week 1. And show that in a stacked bar:
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+p1 = ggplot(Forecast, aes(Week, Sales, fill = Product)) + geom_bar(stat = "identity", show.legend = FALSE) 
+p1
+
+
+```
