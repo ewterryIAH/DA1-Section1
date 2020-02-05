@@ -1,0 +1,502 @@
+---
+title: "Class_4_Notes"
+output: pdf_document
+---
+
+## JOINS-JOINS-JOINS  
+
+
+### Getting data from Files and Tidying in the Verse
+
+Recall from your homework - class 3, we used tidyverse inner_join:
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+library(DBI)
+
+con1 <- dbConnect(odbc::odbc(), Driver = "{SQL Server}", Server = "analyticslab.database.windows.net", 
+    Port = "1433", Database = "A3LProjects", UID = "Student", 
+    PWD = "Acct7397")
+
+locationString = "C:/Users/ellen/OneDrive/Documents/UH/Spring 2020/DA1/Section 1/Class 4/"
+
+library(kableExtra)
+
+```
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=5, fig.height=3, fig.align="center"}
+
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+OrdDetail = read_csv(str_c(locationString,"SalesOrderDetail.csv"))
+Prod = read_csv(str_c(locationString,"Product.csv"))
+
+
+ProdSales = OrdDetail %>% 
+  inner_join(Prod, by = "ProductID") %>%
+  group_by(ProductID, Name) %>%
+  summarise(TotalSales = round(sum(LineTotal),2)) %>%
+  arrange(ProductID)
+
+
+```
+
+
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(ProdSales$TotalSales)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(ProdSales)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+
+```
+
+### Getting Data from the Server, and Tidying in the Verse
+
+Data doesn't always come from text files. MOST data in Enterprises are stored in SQL Servers *(ALL of the ERP, and >90% of Line of Business Applications data is in SQL databases)*.
+
+Lets get data straight off the server:
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+
+# Select Data from Sales Order Detail
+OrdDetailSQL <-  dbGetQuery(con1,"
+SELECT
+[SalesLT].[SalesOrderDetail].[SalesOrderID] 
+,[SalesLT].[SalesOrderDetail].[SalesOrderDetailID] 
+,[SalesLT].[SalesOrderDetail].[OrderQty] 
+,[SalesLT].[SalesOrderDetail].[ProductID] 
+,[SalesLT].[SalesOrderDetail].[UnitPrice]
+,[SalesLT].[SalesOrderDetail].[UnitPriceDiscount]
+,[SalesLT].[SalesOrderDetail].[LineTotal]	
+FROM
+[SalesLT].[SalesOrderDetail]
+")
+
+# Get Data From Product
+
+ProdSQL <- dbGetQuery(con1,"
+SELECT 
+[SalesLT].[Product].[ProductCategoryID]
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name]
+,[SalesLT].[Product].[ProductNumber]
+,[SalesLT].[Product].[ListPrice]
+,[SalesLT].[Product].[StandardCost]
+FROM [SalesLT].[Product]
+")
+
+
+ProdSalesSQL = OrdDetail %>% 
+  inner_join(Prod, by = "ProductID") %>%
+  group_by(ProductID, Name) %>%
+  summarise(TotalSales = round(sum(LineTotal),2)) %>%
+  arrange(ProductID)
+
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(ProdSalesSQL$TotalSales)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(ProdSalesSQL)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+
+```
+
+
+### Getting Data and Tidying on the Server
+
+Using SQL Server to do the work *(Note how Group By works like group_by R, and Order By works like arrange in R)*:
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+ProdSalesSQL2 <-  dbGetQuery(con1,"
+SELECT
+[SalesLT].[SalesOrderDetail].[ProductID] 
+,[SalesLT].[Product].[Name]
+,sum([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM
+[SalesLT].[SalesOrderDetail]
+INNER JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[SalesOrderDetail].[ProductID] = [SalesLT].[Product].[ProductID]
+GROUP BY 
+[SalesLT].[SalesOrderDetail].[ProductID] 
+,[SalesLT].[Product].[Name]
+ORDER BY
+[SalesLT].[SalesOrderDetail].[ProductID] 
+")
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(ProdSalesSQL2$TotalSales)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(ProdSalesSQL2)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+
+```
+
+
+Also, note that the SQL INNER JOIN is similar to R.  For application purposes, you should plan to do as much tidying in SQL as possible - Enterprise data is usually **HUGE** in scale, and your desktop isn't going to handle it. and neither will *project* level servers and *marts* like Tableau and Alteryx. That said, you'll still need to do tidying in R too. 
+
+### Adding Product Category and Tidying in the Verse
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+# Get Data From Product with Product Category
+Prod <- dbGetQuery(con1,"
+SELECT 
+[SalesLT].[Product].[ProductCategoryID]
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name]
+,[SalesLT].[Product].[ProductNumber]
+,[SalesLT].[Product].[ListPrice]
+,[SalesLT].[Product].[StandardCost]
+FROM [SalesLT].[Product]
+")
+
+ProdCat <- dbGetQuery(con1,"
+SELECT 
+[SalesLT].[ProductCategory].[ProductCategoryID]
+,[SalesLT].[ProductCategory].[Name]
+FROM [SalesLT].[ProductCategory]
+")
+
+ProdCatSales = ProdCat %>% 
+  rename(CategoryName = Name) %>% 
+  # important to understand how dplyr will handle duplicate column names
+  inner_join(Prod, by = "ProductCategoryID") %>%
+  inner_join(OrdDetail, by = "ProductID") %>%
+  group_by(ProductCategoryID, CategoryName) %>%
+  summarise(TotalSales = round(sum(LineTotal),2)) %>%
+  arrange(ProductCategoryID)
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(ProdCatSales$TotalSales)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(ProdCatSales)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+
+Note the *rename* here. R will not allow you to create a dataframe with 2 columns of the same name *(ProductCategory and Product both have "Name" columns)*. Neither will SQL, but R will rename the column for you *(then you can rename later)*. SQL will just give you an error if you want to store the results in a table - or temp table *(not runnning this below, but it will err out - run in beaver if you want to see)*. SQL won't give you an error if you're just running a report:
+```{r, echo = T, eval = FALSE, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+ProductCatSalesSQL = dbGetQuery(con1,"
+/*
+
+DROP TABLE IF EXISTS ##TempProductQuery
+set nocount on
+
+SELECT
+ [SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[Name] 
+,sum([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+INTO ##TempProductQuery
+FROM
+[SalesLT].[ProductCategory]
+INNER JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[ProductCategory].[ProductCategoryID] = [SalesLT].[Product].[ProductCategoryID]
+INNER JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+GROUP BY
+ [SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[Name] 
+
+
+*/
+")
+
+# No output - just error
+
+```
+
+Note: You can create a temp table in SQL to store results and manipulate data. It's similar to putting a query result into your own dataframe - but it lives on the server for the duration of your session. That said - **don't use temp tables in the this class**. I put it here so you'd be aware of the functionality. You won't need them for classwork or exams.
+
+### Getting Data from the Server, and Tidying in the Server
+
+Without using a temp table, the query would look like this:
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+ProdCatSalesSQL = dbGetQuery(con1,"
+
+SELECT
+ [SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] AS CategoryName
+,[SalesLT].[Product].[Name] 
+,sum([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM
+[SalesLT].[ProductCategory]
+INNER JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[ProductCategory].[ProductCategoryID] = [SalesLT].[Product].[ProductCategoryID]
+INNER JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+GROUP BY
+ [SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[Name] 
+
+")
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(ProdCatSalesSQL$TotalSales)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(ProdCatSalesSQL)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+
+
+## LEFT JOINS
+
+What if management says "I want to see the products that didn't sell too - just as interested in those". A left join includes everything on the *Left* side of the join *(or the right side with a RIGHT JOIN - this works the same in R)*:
+
+### Single Left Join
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+AllProdSalesSQL = dbGetQuery(con1,"
+SELECT
+ [SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] AS Product_Name
+,SUM([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM
+[SalesLT].[Product]
+LEFT JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+GROUP BY 
+ [SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] 
+
+")
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(AllProdSalesSQL$TotalSales, na.rm = T)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(AllProdSalesSQL)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+
+
+### LEFT JOIN with INNER JOIN
+
+Now let's create a LEFT JOIN between Product and SalesOrderDetail with an INNER JOIN between 
+Product Category and Product:
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+
+AllProdCatSalesSQL = dbGetQuery(con1,"
+
+SELECT
+ [SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] AS Product_Name
+,SUM([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM 
+[SalesLT].[ProductCategory]
+INNER JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[ProductCategory].[ProductCategoryID] = [SalesLT].[Product].[ProductCategoryID]
+LEFT JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+GROUP BY 
+ [SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] 
+
+")
+
+## BE SURE AND USE na.rm = T when summing a colunn with NAs
+
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(AllProdCatSalesSQL$TotalSales, na.rm = T)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(AllProdCatSalesSQL)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+
+### 2 LEFT JOINs
+
+Extending this example, let's create a LEFT JOIN between Product and SalesOrderDetail with an LEFT JOIN between Product Category and Product:
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+AllProdCatandProdSalesSQL = dbGetQuery(con1,"
+SELECT
+ [SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] AS Product_Name
+,SUM([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM 
+[SalesLT].[ProductCategory]
+LEFT JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[ProductCategory].[ProductCategoryID] = [SalesLT].[Product].[ProductCategoryID]
+LEFT JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+GROUP BY 
+ [SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] 
+
+")
+
+```
+
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+x = "Total Sales = "
+y = sum(AllProdCatandProdSalesSQL$TotalSales, na.rm = T)
+
+Out <- data.frame(Description = x, Value = y)
+
+knitr::kable(Out) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+knitr::kable(head(AllProdCatandProdSalesSQL)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+
+## SQL Filtering 
+
+One last thing for today. SQL has very sophisticated filtering and aggregation functions, but now for the basics: the **WHERE** clause is roughly equivalent to R's "filter". SQL can also filter aggregates using the **HAVING** clause. See below: 
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+FilterExample = dbGetQuery(con1,"
+SELECT
+[SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] AS Product_Name
+,SUM([SalesLT].[SalesOrderDetail].[LineTotal]) AS TotalSales	
+FROM 
+[SalesLT].[ProductCategory]
+LEFT JOIN
+[SalesLT].[Product]
+ON
+[SalesLT].[ProductCategory].[ProductCategoryID] = [SalesLT].[Product].[ProductCategoryID]
+LEFT JOIN
+[SalesLT].[SalesOrderDetail]
+ON
+[SalesLT].[Product].[ProductID] = [SalesLT].[SalesOrderDetail].[ProductID]
+WHERE 
+[SalesLT].[ProductCategory].[ProductCategoryID] = 5
+GROUP BY 
+[SalesLT].[ProductCategory].[ProductCategoryID] 
+,[SalesLT].[ProductCategory].[Name] 
+,[SalesLT].[Product].[ProductID] 
+,[SalesLT].[Product].[Name] 
+HAVING 
+SUM([SalesLT].[SalesOrderDetail].[LineTotal])  < 1000.00
+
+")
+
+```
+
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+knitr::kable(FilterExample) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
