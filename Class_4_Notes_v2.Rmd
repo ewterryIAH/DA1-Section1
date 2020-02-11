@@ -388,6 +388,8 @@ GROUP BY
 
 ")
 
+sum(AllProdCatSalesSQL$TotalSales, na.rm = T)
+
 ## BE SURE AND USE na.rm = T when summing a colunn with NAs
 
 ```
