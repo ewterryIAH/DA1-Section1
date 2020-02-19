@@ -1,0 +1,110 @@
+---
+title: "Class_5_Exercise_V2"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+library(DBI)
+
+con1 <- dbConnect(odbc::odbc(), Driver = "{SQL Server}", Server = "analyticslab.database.windows.net", 
+    Port = "1433", Database = "A3LProjects", UID = "ewterry", 
+    PWD = "Sarge(1001)")
+
+locationString = "C:/Users/ellen/OneDrive/Documents/UH/Spring 2020/DA1/Section 1/Class 5/"
+
+library(kableExtra)
+
+```
+
+```{r, echo = T, comment=NA, message=F, warning=F, fig.width=5, fig.height=3, fig.align="center"}
+
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+
+```
+
+## Cost Management at AdventureWorks
+
+AdventureWorks is looking to improve cashflow. Several ideas that have come up, among those is increasing management of shipping cost. Bernie *(Sales VP)* has a quote from ClickNShip for price / lb. He wants to know if this will improve costs based on current sales They hae provided a quote for each city where Adventureworks does business, or is considering, in  **ClickNShip.csv)**.  
+
+First, you'll need current Shipping Costs *(Frieght in SalesOrderHeader)*, and you'll need product weights *(in Product - note that weight is in grams - you can use 450g/lb to convert to lbs)*. Then we want to compare current to bid shipping rates and project the savings by City. *(Hint: Be careful joining Cities, there are more than two ShipTo addresses within one city, so pay attention to your keys - it's generally preferrable to summarise around primary keys)*.   
+
+There are many ways to get this data into analysis - you can aggregate on the server, or if you feel more comfortable in R, you can go that route. Up to you.
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+# Select Data from Sales Order Detail
+ShippingCostAnalysis = dbGetQuery(con1,"
+Execute spGetCitySales
+
+")
+
+
+
+ShippingCostAnalysis = ShippingCostAnalysis %>% mutate(CostPerLb = Freight/Lbs) %>% 
+           filter(CostPerLb>0 | Lbs >0 ) %>%
+           filter(! is.infinite(CostPerLb)) 
+
+
+```
+
+Once you get the data summarized and you've calculated Lbs and CostPerLlb *(which you'll need to compare with ClickNShip's bid)*, it should be similar to the following:
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+knitr::kable(head(ShippingCostAnalysis)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+
+After you have tidy data, create a plot similar to the one below:
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=4, fig.align="center"}
+
+ShippingCostAnalysis %>%
+  ggplot(aes(reorder(City, CostPerLb), CostPerLb)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip()
+
+```
+
+Now get the bid data from ClickNShip, and compare totalcosts based on their rate/lb with current Frieght costs:
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+ClickQuotes = read_csv(str_c(locationString, "ClickNShipQuote.csv"))
+
+ShippingCostAnalysis = ClickQuotes %>% mutate(City = str_sub(City, 1, str_locate(City,",")[,1]-1)) %>% 
+  inner_join(ShippingCostAnalysis, by = "City")%>% 
+  mutate(Bid = Lbs*RatePerLb) 
+
+
+ShippingCostAnalysis %>% dplyr::select (City, Current = Freight, Bid = Bid) %>%
+  pivot_longer(2:3, names_to = "Source", values_to = "Amount") %>% 
+  ggplot(aes(City, Amount, fill = Source)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip()
+
+
+```
+
+Now that you have the differences, it should appear clear that there are cities where we want to use our current shipper, and cities where we want to use ClickNShip. THe last step is to calculate potential savings, assumming that we were to ship the same next month as we did last month. So, if ClickNShip's cost is lower, that's a saving. If it's not lower then the savings is 0. Show the potential savings like below *(total savings should be 4,515.28)*:
+
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+ShippingCostAnalysis = ShippingCostAnalysis %>% 
+  mutate(Saving = if_else(Bid < Freight, Bid, 0)) 
+ShippingCostAnalysis %>%
+  ggplot(aes(City, Saving)) + 
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+```
