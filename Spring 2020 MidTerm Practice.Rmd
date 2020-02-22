@@ -1,0 +1,218 @@
+
+---
+title: "Acct 7373 Spring 2019  \n Mid-Term Practice Exam"
+output: pdf_document
+---
+```{r setup, include=FALSE, echo = F}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+library(DBI)
+
+con1 = 
+  
+  #dropped for security reasons
+  
+  
+locationString = "C:/Users/ellen/OneDrive/Documents/UH/Spring 2020/DA1/Section 1/Class 6/"
+
+library(kableExtra)
+
+```
+
+Load the following libraries:
+
+```{r, echo = TRUE, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+```
+
+## Scenario:
+
+Adventureworks is not making the money they expected, and management has hired you to help them identify ways to improve profits. They want to look at profits by salesperson first, and then develop a policy to guide profit improvement.
+
+## Intial Analysis
+
+Get the following data from the server:  
+
+[SalesLT].[SalesOrderDetail].[SalesOrderID]  
+[SalesLT].[SalesOrderHeader].[OrderDate]  
+[SalesLT].[SalesOrderDetail].[SalesOrderDetailID]  
+[SalesLT].[SalesOrderDetail].[ProductID]  
+[SalesLT].[SalesOrderDetail].[UnitPrice]  
+[SalesLT].[SalesOrderDetail].[OrderQty]  
+[SalesLT].[SalesOrderDetail].[LineTotal]  
+[SalesLT].[SalesOrderHeader].[CustomerID]  
+[SalesLT].[Customer].[CompanyName]  
+[SalesLT].[Customer].[SalesPerson]  
+[SalesLT].[Product].[Name]  
+[SalesLT].[Product].[StandardCost]  
+[SalesLT].[Product].[ListPrice]  
+
+The first thing you'll need to do is pull out the salespersons email alias only *(the names are all prefaced by their domain name `adventure-works\`, and we don't want to see the whole mess in plots)*. This is a little tricky, so please review the following guidance:
+
+***
+
+### Escape Characters
+
+The salespersons name is stored in the following format:
+
+`adventure-works\linda3`
+
+This is a problem becuase the `\` character is a special character called an escape character. An escape character *(or sequence)* tells the system that the next character is to be taken literally. So, for example, if you want the system to treat a  " *(quote)* as a literal quote *(instead of the begining or end of a string)*, you would encode it like: `\"`.  
+
+Its the same when the character is actaully a `\`. Then, you have to encode it as `\\`. And *(here's the tricky part)* R will do this automatically when it reads in strings with `\` in them - and... you won't see this when it's rendered in a dataframe or print function *(because it's an escapte character telling R how to render the * `\` *)*.   
+
+So, even though the data looks like `\`, it's really `\\`. That means to locate it, you have to define it as `\\\\` *(an escape for each one)*. So, for instance, if you're using a str_locate, you would use:  
+
+str_locate(SalesPerson, `"\\\\"`)[,1]+ 2  
+
+***
+```{r, message=F, warning=F, fig.width=6, fig.height=4, fig.align="center"}
+
+library(knitr)
+library(odbc)
+library(DBI)
+
+
+con1 <- dbConnect(odbc::odbc(), Driver = "{SQL Server}", Server = "analyticslab.database.windows.net", 
+    Port = "1433", Database = "A3LProjects", UID = "Student", 
+    PWD = "Acct7397")
+
+
+```
+
+```{r, message=F, warning=F, fig.width=5, fig.height=4, fig.align="center", eval=T, echo=F}
+
+SalesData = dbGetQuery(con1,"
+
+SELECT
+[SalesLT].[SalesOrderDetail].[SalesOrderID]
+,[SalesLT].[SalesOrderHeader].[OrderDate]
+,[SalesLT].[SalesOrderDetail].[SalesOrderDetailID]
+,[SalesLT].[SalesOrderDetail].[ProductID]
+,[SalesLT].[SalesOrderDetail].[UnitPrice]
+,[SalesLT].[SalesOrderDetail].[OrderQty]
+,[SalesLT].[SalesOrderDetail].[LineTotal]
+,[SalesLT].[SalesOrderHeader].[CustomerID]
+,[SalesLT].[Customer].[CompanyName]
+,[SalesLT].[Customer].[SalesPerson]
+,[SalesLT].[Product].[Name] AS ProductName
+,[SalesLT].[Product].[StandardCost]
+,[SalesLT].[Product].[ListPrice]
+FROM
+[SalesLT].[SalesOrderDetail]
+INNER JOIN
+[SalesLT].[SalesOrderHeader]
+ON
+[SalesLT].[SalesOrderDetail].[SalesOrderID] = 
+[SalesLT].[SalesOrderHeader].[SalesOrderID]
+INNER JOIN
+[SalesLT].[Product]
+ON 
+[SalesLT].[SalesOrderDetail].[ProductID] = 
+[SalesLT].[Product].[ProductID]
+INNER JOIN
+[SalesLT].[Customer]
+ON 
+[SalesLT].[SalesOrderHeader].[CustomerID] = 
+[SalesLT].[Customer].[CustomerID]
+
+")
+
+
+```
+
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+
+SalesData  = SalesData %>% mutate(SalesPerson = str_sub(SalesPerson, str_locate(SalesPerson, "\\\\")[,1]+ 2, str_length(SalesPerson)))
+
+```
+Continuing on, we want to look at the profit by salesperson. So, you want to create a profit analysis by SalesPerson and ProductName, with columns for TotSales, TotCost *(using standard cost)*. Then, compute the Profit Percentage. 
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+
+ProfitBySalesPerson = SalesData %>% 
+  mutate(Cost = (OrderQty * StandardCost), Profit = LineTotal - Cost, Discount = (OrderQty * ListPrice) - LineTotal)%>%
+  group_by(SalesPerson, ProductName) %>% 
+  summarise(TotSales = sum(LineTotal), 
+            TotCost = round(sum(Cost),2), 
+            TotProfit = round(sum(Profit),2), 
+            ProfitPrcntg = round(TotProfit / (TotProfit+TotCost),2)) 
+
+```
+The data should be similar to the following:  
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+
+knitr::kable(head(ProfitBySalesPerson)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+Now create a stacked bar plot to visualize profit by salesperson:
+```{r, echo = F, comment=NA, message=F, warning=F, fig.width=4, fig.height=3, fig.align="center"}
+
+# notice dplyr::select - avoids conflict with MASS package
+
+
+ProfitBySalesPerson %>% dplyr::select(SalesPerson, TotProfit, TotCost) %>%
+  pivot_longer(2:3, names_to = "Description", values_to = "Amt") %>% 
+  ggplot(aes(SalesPerson, Amt, fill = Description)) + geom_bar(stat = "identity")
+
+```
+It appears that these is quite a bit of discounting going on.  
+
+You meet with management to explain your findings. The decision is to limit pricing so that no less than 9% profit is created.  
+
+They want to implement this for next month *(July)*, and they have asked you to create a forecast to visualize how this will play out.  
+
+First, create a July forecast with the same sales data as June. Then, split that into 2 subsets: one for sales with profit < 9%, and one for profit >= 9%. For the subset that is < 9%, **reprice** the sales *(change the LineTotal)* to create a 9% profit. Leave the other subset as is, and combine the two for your July forecast *(you'll also need to add a month to the date)*
+
+Then, combine with June for comparison, and create a forecast like:  
+```{r eval=T, echo=F, fig.align="center", fig.height=3, fig.width=8, message=FALSE, warning=FALSE}
+MarginFloor = .09
+
+SalesData2 = SalesData %>% mutate(OrderDate = OrderDate + months(1))
+
+MarginAdjust = SalesData2 %>%  filter((LineTotal - (OrderQty*StandardCost))/LineTotal < MarginFloor) %>%
+  mutate(LineTotal = (1/(1-MarginFloor))*(OrderQty*StandardCost)) 
+
+Forecast = SalesData2 %>% anti_join(MarginAdjust, by = c("SalesOrderID", "SalesOrderDetailID")) %>%
+  bind_rows(MarginAdjust) %>% bind_rows(SalesData) %>% 
+  mutate(Cost = (OrderQty * StandardCost), 
+    Profit = LineTotal - Cost, 
+    Month = month(OrderDate, label = T))
+```
+
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+ProfitBySalesPerson2 = Forecast %>% group_by(SalesPerson,Month) %>% 
+  summarise(TotSales = round(sum(LineTotal),2), 
+            TotCost = round(sum(Cost),2),
+            TotProfit = round(sum(Profit),2), 
+            ProfitPrcntg = round(TotProfit / (TotProfit+TotCost),2)) 
+```
+
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+
+knitr::kable(head(ProfitBySalesPerson2)) %>%
+  kable_styling(bootstrap_options = "striped", font_size = 9)
+
+```
+Now create a new stacked bar with facets by month:
+```{r, message=F, warning=F, fig.width=8, fig.height=3, fig.align="center", eval=T, echo=F}
+
+PlotProfit2 = ProfitBySalesPerson2 %>% dplyr::select(Month, SalesPerson, TotProfit, TotCost) %>%
+  pivot_longer(3:4, names_to = "Description", values_to = "Amt")
+
+p = ggplot(PlotProfit2, aes(SalesPerson, Amt, fill = Description)) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~Month)
+p
+
+
+```
+
+You're done!
